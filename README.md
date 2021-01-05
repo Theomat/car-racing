@@ -1,2 +1,2 @@
 # car-racing
-DQN oslution to OpenAI gym CarRacing-v0
+DQN solution to OpenAI gym CarRacing-v0
