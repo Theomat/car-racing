@@ -1,6 +1,5 @@
 import env_runner
 import annealing
-import discretize
 from policies import TrainingPolicy, Policy, to_epsilon_greedy
 from uniform_replay_buffer import UniformReplayBuffer
 
@@ -44,8 +43,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
     for i_training_step in range(episodes // train_frequency):
         # Produce data by interaction
         current_policy: TrainingPolicy = to_epsilon_greedy(policy,
-                                                           annealing.translated(i_training_step * train_frequency, epsilon),
-                                                           discretize.MAX_ACTION)
+                                                           annealing.translated(i_training_step * train_frequency, epsilon))
         data: List[env_runner.Episode] = env_runner.run_episodes(current_policy, train_frequency, max_steps, render)
         # Log Train rewards
         train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in data]

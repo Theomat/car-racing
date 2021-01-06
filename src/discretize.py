@@ -52,3 +52,20 @@ def action_discrete2continous(action: int) -> np.ndarray:
     if action.has_flag(DiscreteAction.TURN_RIGHT_MID):
         s += 0.66
     return np.array([s, t, b])
+
+
+def action_random() -> int:
+    acceleration: int = np.random.randint(0, 4)
+    brake: int = np.random.randint(0, 4)
+    left: int = np.random.randint(0, 4)
+    right: int = np.random.randint(0, 4)
+    return action_from_values(acceleration, brake, left, right)
+
+
+def action_from_values(acceleration: int, brake: int, left: int, right: int) -> int:
+    action: int = 0
+    action += DiscreteAction.ACCELERATE_SLOW * acceleration
+    action += DiscreteAction.BRAKE_SLOW * brake
+    action += DiscreteAction.TURN_LEFT_SLOW * left
+    action += DiscreteAction.TURN_RIGHT_SLOW * right
+    return action
