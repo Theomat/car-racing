@@ -29,15 +29,16 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000, 
     env = gym.make('CarRacing-v0')
     episodic_data: List[Episode] = []
     for i_episode in range(episodes):
-        observation: np.ndarray = env.reset()
+        state: np.ndarray = env.reset().copy()
         episode_data: Episode = []
         for t in range(max_steps):
             if render:
                 env.render()
-            discrete_action: int = policy(observation, i_episode, episodes)
-            state: np.ndarray = observation
+            discrete_action: int = policy(state, i_episode, episodes)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
-            episode_data.append((state, discrete_action, reward, info, observation))
+            new_state: np.ndarray = observation.copy()
+            episode_data.append((state, discrete_action, reward, info, new_state))
+            state: np.ndarray = new_state
             if done:
                 break
         episodic_data.append(episode_data)
@@ -69,7 +70,7 @@ def evaluate(policy: Policy, episodes: int, max_steps: int = 10000, render: bool
         for t in range(max_steps):
             if render:
                 env.render()
-            discrete_action: int = policy(observation)
+            discrete_action: int = policy(observation.copy())
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
             episode_reward += reward
             if done:
