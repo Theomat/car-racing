@@ -40,11 +40,11 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
     """
     writer: SummaryWriter = SummaryWriter()
 
-    pbar = tqdm.pbar(episodes, desc="episodes")
+    pbar = tqdm.tqdm(total=episodes, desc="episodes")
     for i_training_step in range(episodes // train_frequency):
         # Produce data by interaction
         current_policy: TrainingPolicy = to_epsilon_greedy(policy,
-                                                           annealing.translated(i_training_step * train_frequency),
+                                                           annealing.translated(i_training_step * train_frequency, epsilon),
                                                            discretize.MAX_ACTION)
         data: List[env_runner.Episode] = env_runner.run_episodes(current_policy, train_frequency, max_steps, render)
         # Log Train rewards
