@@ -48,7 +48,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
                                                            discretize.MAX_ACTION)
         data: List[env_runner.Episode] = env_runner.run_episodes(current_policy, train_frequency, max_steps, render)
         # Log Train rewards
-        train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in episodes]
+        train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in data]
         writer.add_histogram("Reward/Test", torch.from_numpy(np.array(train_rewards)), i_training_step)
         # Store data
         replay_buffer.store(data)
