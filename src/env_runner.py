@@ -1,16 +1,17 @@
-from typing import List, Any, Tuple, Callable
+from typing import List, Any, Tuple
 from discretize import action_discrete2continous
+from policies import Policy, TrainingPolicy
+
+import numpy as np
 
 import gym
 
 
-Policy = Callable[[Any], int]
-TrainingPolicy = Callable[[Any, int, int], int]
-Transition = Tuple[Any, int, float, Any, Any]
+Transition = Tuple[np.ndarray, int, float, Any, np.ndarray]
 Episode = List[Transition]
 
 
-def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 1000, render: bool = False) -> List[Episode]:
+def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000, render: bool = False) -> List[Episode]:
     """
     Run a certain number of episodes given the specific policy.
 
@@ -28,13 +29,13 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 1000, r
     env = gym.make('CarRacing-v0')
     episodic_data: List[Episode] = []
     for i_episode in range(episodes):
-        observation: Any = env.reset()
+        observation: np.ndarray = env.reset()
         episode_data: Episode = []
         for t in range(max_steps):
             if render:
                 env.render()
             discrete_action: int = policy(observation, i_episode, episodes)
-            state: Any = observation
+            state: np.ndarray = observation
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
             episode_data.append((state, discrete_action, reward, info, observation))
             if done:
@@ -44,7 +45,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 1000, r
     return episodic_data
 
 
-def evaluate(policy: Policy, episodes: int, max_steps: int = 1000, render: bool = False) -> List[float]:
+def evaluate(policy: Policy, episodes: int, max_steps: int = 10000, render: bool = False) -> List[float]:
     """
     Run a certain number of episodes given the specific policy to evaluate it.
 
@@ -63,7 +64,7 @@ def evaluate(policy: Policy, episodes: int, max_steps: int = 1000, render: bool 
     env.seed(0)
     rewards: List[float] = []
     for i_episode in range(episodes):
-        observation: Any = env.reset()
+        observation: np.ndarray = env.reset()
         episode_reward: float = 0
         for t in range(max_steps):
             if render:

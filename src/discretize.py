@@ -1,5 +1,7 @@
 from enum import IntFlag
-from typing import Tuple
+
+
+import numpy as np
 
 
 class DiscreteAction(IntFlag):
@@ -21,14 +23,17 @@ class DiscreteAction(IntFlag):
         return self & flag == flag
 
 
-def action_discrete2continous(action: int) -> Tuple[float, float, float]:
+MAX_ACTION: int = DiscreteAction.TURN_RIGHT_FAST + DiscreteAction.BRAKE_FAST
+
+
+def action_discrete2continous(action: int) -> np.ndarray:
     """
     Transform a discrete action to a triple (s, t, b).
     s in [-1;1] is the steering angle
     t in [0;1] is the throttle
     b in [0;1] is the brake
     """
-    s, t, b = 0
+    s, t, b = 0, 0, 0
     action: DiscreteAction = DiscreteAction(action)
     if action.has_flag(DiscreteAction.ACCELERATE_SLOW):
         t += 0.33
@@ -46,4 +51,4 @@ def action_discrete2continous(action: int) -> Tuple[float, float, float]:
         s += 0.33
     if action.has_flag(DiscreteAction.TURN_RIGHT_MID):
         s += 0.66
-    return s, t, b
+    return np.array([s, t, b])
