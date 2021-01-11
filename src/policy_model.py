@@ -38,7 +38,7 @@ class PolicyModel(nn.Module):
         super(PolicyModel, self).__init__()
 
         self.initial = nn.Sequential(
-            nn.Conv2d(3, 32, 3),
+            nn.Conv2d(12, 32, 3),
             nn.ReLU()
         )
         blocks: int = 9
