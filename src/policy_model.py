@@ -38,10 +38,10 @@ class PolicyModel(nn.Module):
         super(PolicyModel, self).__init__()
 
         self.initial = nn.Sequential(
-            nn.Conv2d(12, 32, 3),
+            nn.Conv2d(4, 32, 3),
             nn.ReLU()
         )
-        blocks: int = 9
+        blocks: int = 2
         self.residual_block = ResidualBlock(blocks)
         size: int = 96 - (1 + blocks) * 4 + 2
         self.layers = nn.Sequential(

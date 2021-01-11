@@ -16,9 +16,9 @@ print('Training on ' + device_name)
 # Globals =====================================================================
 MEMORY_BUFFER_SIZE = 10**5
 EPISODES = 1000
-TEST_EPISODES = 10
+TEST_EPISODES = 0
 TRAIN_FREQUENCY = 10
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 EPS_START = .7
 LR = 0.001
 L2_REG_COEFF = 1e-4
@@ -32,32 +32,36 @@ optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
 
 # Functions====================================================================
-def loss_function(states, q_values, actions, rewards, next_states):
+def loss_function(states, actions, rewards, next_states):
     q_values = model(states)
-    action_values = torch.gather(q_values, 1, actions)
-    next_states_values = model(next_states).max(1)
-    expected_values = rewards + GAMMA * next_states_values
+    action_values = torch.gather(q_values, 1, actions.to(torch.int64))
+    next_states_values, _ = model(next_states).max(1)
+    expected_values = rewards + GAMMA * next_states_values.view((next_states_values.shape[0], 1))
     return F.smooth_l1_loss(action_values, expected_values)
 
 
 def optimize_model(writer, training_step):
-    states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
-    # Convert to correct type tensors
-    states = states.float().to(device)
-    actions = actions.float().to(device)
-    rewards = rewards.float().to(device)
-    next_states = next_states.float().to(device)
+    total_loss = 0.0
+    for _ in range(TRAIN_FREQUENCY * EPISODES // BATCH_SIZE):
+        states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
+        # Convert to correct type tensors
+        states = states.float().to(device)
+        actions = actions.float().to(device)
+        rewards = rewards.float().to(device)
+        next_states = next_states.float().to(device)
 
-    # Set to train mode
-    model.train()
+        # Set to train mode
+        model.train()
 
-    loss = loss_function(states, actions, rewards, next_states)
-    optimizer.zero_grad()
-    loss.backward()
+        loss = loss_function(states, actions, rewards, next_states)
+        optimizer.zero_grad()
+        loss.backward()
 
-    optimizer.step()
+        optimizer.step()
 
-    writer.add_scalar('Loss/Train', loss.item(), training_step)
+        total_loss += loss.item()
+
+    writer.add_scalar('Loss/Train', total_loss, training_step)
     # Set back to eval mode
     model.eval()
 
