@@ -14,6 +14,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 device_name = "cpu" if device == "cpu" else torch.cuda.get_device_name(0)
 print('Training on ' + device_name)
 # Globals =====================================================================
+MAX_STEPS = 1000
 MEMORY_BUFFER_SIZE = 10**5
 EPISODES = 1000
 TEST_EPISODES = 0
@@ -23,6 +24,7 @@ EPS_START = .7
 LR = 0.001
 L2_REG_COEFF = 1e-4
 GAMMA = .98
+K = .1
 # Instanciation ===============================================================
 model = PolicyModel(discretize.MAX_ACTION).float().to(device)
 replay_buffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE)
@@ -37,7 +39,8 @@ def loss_function(states, actions, rewards, next_states):
     action_values = torch.gather(q_values, 1, actions.to(torch.int64))
     next_states_values, _ = model(next_states).max(1)
     expected_values = rewards + GAMMA * next_states_values.view((next_states_values.shape[0], 1))
-    return F.smooth_l1_loss(action_values, expected_values)
+    # DQN reg loss
+    return F.mse_loss(action_values, expected_values) + torch.mean(K * q_values)
 
 
 def optimize_model(writer, training_step):
@@ -69,4 +72,4 @@ def optimize_model(writer, training_step):
 # Run =========================================================================
 print(model)
 trainer.train(policy, optimize_model, epsilon, replay_buffer,
-              EPISODES, TRAIN_FREQUENCY, TEST_EPISODES)
+              EPISODES, TRAIN_FREQUENCY, TEST_EPISODES, MAX_STEPS)
