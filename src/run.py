@@ -15,13 +15,13 @@ device_name: str = "cpu" if device == "cpu" else torch.cuda.get_device_name(0)
 print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
-MEMORY_BUFFER_SIZE = 10**5
+TRAIN_FREQUENCY = 5
+MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY
 EPISODES = 1000
 TEST_EPISODES = 0
-TRAIN_FREQUENCY = 10
 BATCH_SIZE = 32
 EPS_START = .7
-LR = 0.001
+LR = 1e-4
 L2_REG_COEFF = 1e-4
 GAMMA = .98
 K = .1
@@ -46,7 +46,7 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
 
 def optimize_model(writer, training_step: int):
     total_loss: float = 0.0
-    for _ in range(TRAIN_FREQUENCY * EPISODES // BATCH_SIZE):
+    for _ in range(TRAIN_FREQUENCY * MAX_STEPS // BATCH_SIZE):
         states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
         # Convert to correct type tensors
         states = states.to(device)
@@ -60,7 +60,6 @@ def optimize_model(writer, training_step: int):
         loss = loss_function(states, actions, rewards, next_states)
         optimizer.zero_grad()
         loss.backward()
-
         optimizer.step()
 
         total_loss += loss.item()
