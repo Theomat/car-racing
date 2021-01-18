@@ -1,13 +1,24 @@
 import numpy as np
 
+from typing import Tuple
 
-MAX_ACTION: int = 5
 
-TURN_LEFT = 0
-TURN_RIGHT = 1
-BRAKE = 2
-ACCELERATE = 3
-DO_NOTHING = 4
+ACTION_SPACE: Tuple[np.ndarray] = (
+    np.array([-1, 1, 0.]),
+    np.array([-1, 1, .2]),
+    np.array([-1, 0, 0.]),
+    np.array([-1, 0, .2]),
+    np.array([0, 1, 0.]),
+    np.array([0, 1, .2]),
+    np.array([0, 0, 0.]),
+    np.array([0, 0, .2]),
+    np.array([1, 1, 0.]),
+    np.array([1, 1, .2]),
+    np.array([1, 0, 0.]),
+    np.array([1, 0, .2]),
+)
+MAX_ACTION: int = len(ACTION_SPACE)
+
 
 def action_discrete2continous(action: int) -> np.ndarray:
     """
@@ -16,20 +27,11 @@ def action_discrete2continous(action: int) -> np.ndarray:
     t in [0;1] is the throttle
     b in [0;1] is the brake
     """
-    if action == TURN_LEFT:
-        return np.array([-1.0, 0.0, 0.0])
-    elif action == TURN_RIGHT:
-        return np.array([+1.0, 0.0, 0.0])
-    elif action == BRAKE:
-        return np.array([0.0, 0.0, +0.8])
-    elif action == ACCELERATE:
-        return np.array([0.0, +1.0, +0.8])
-    elif action == DO_NOTHING:
-        return np.array([0.0, 0.0, 0.0])
+    if action < MAX_ACTION:
+        return ACTION_SPACE[action]
     else:
         print("Action outside of action space !")
 
 
-
 def action_random() -> int:
-    return np.random.randint(0, 5)
+    return np.random.randint(0, MAX_ACTION)
