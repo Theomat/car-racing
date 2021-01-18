@@ -52,7 +52,6 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in data]
         writer.add_histogram("Reward/Train", torch.from_numpy(np.array(train_rewards)), i_training_step)
         # Store data
-        replay_buffer.clear()
         replay_buffer.store(data)
         # Update progress bar
         pbar.update(train_frequency)
