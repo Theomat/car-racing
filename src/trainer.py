@@ -20,6 +20,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
           frames_stack: int = 4,
           test_performance_episodes: int = 0,
           max_steps: int = 10000,
+          max_negative_steps: int = 25,
           render: bool = False):
     """
     Train given the specified policy and optimizing with the given callback.
@@ -37,6 +38,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
     - **test_performance_episodes**: the number of episodes ot run to evaluate the performance after each training step,
         if <= 0 no test performance is tracked
     - **max_steps**: maximum number of steps allowed within the environment in each episode
+    - **max_negative_steps**: maximum number of consecutive negative steps before early stopping
     - **render**: whether or not to render the environment
     """
     writer: SummaryWriter = SummaryWriter()
@@ -47,7 +49,10 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         current_policy: TrainingPolicy = to_epsilon_greedy(policy,
                                                            annealing.translated(i_training_step * train_frequency, epsilon))
         data: List[env_runner.Episode] = env_runner.run_episodes(current_policy, train_frequency,
-                                                                 max_steps, render, frames_stack)
+                                                                 max_steps=max_steps,
+                                                                 render=render,
+                                                                 frames_stack=frames_stack,
+                                                                 neg_steps_early_stop=max_negative_steps)
         # Log Train rewards
         train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in data]
         writer.add_histogram("Reward/Train", torch.from_numpy(np.array(train_rewards)), i_training_step)
