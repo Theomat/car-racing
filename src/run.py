@@ -10,8 +10,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 # Setup =======================================================================
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-device_name = "cpu" if device == "cpu" else torch.cuda.get_device_name(0)
+device: str = "cuda:0" if torch.cuda.is_available() else "cpu"
+device_name: str = "cpu" if device == "cpu" else torch.cuda.get_device_name(0)
 print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
@@ -26,32 +26,33 @@ L2_REG_COEFF = 1e-4
 GAMMA = .98
 K = .1
 # Instanciation ===============================================================
-model = PolicyModel(discretize.MAX_ACTION).float().to(device)
-replay_buffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE)
-epsilon = annealing.linear(EPS_START, 0, EPISODES)
-policy = policies.from_model(model)
+model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION).float().to(device)
+replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE)
+epsilon: annealing.Annealing = annealing.linear(EPS_START, 0, EPISODES)
+policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
 
 # Functions====================================================================
-def loss_function(states, actions, rewards, next_states):
-    q_values = model(states)
-    action_values = torch.gather(q_values, 1, actions.to(torch.int64))
+def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
+                  rewards: torch.FloatTensor, next_states: torch.FloatTensor) -> torch.FloatTensor:
+    q_values: torch.FloatTensor = model(states)
+    action_values: torch.FloatTensor = torch.gather(q_values, 1, actions)
     next_states_values, _ = model(next_states).max(1)
-    expected_values = rewards + GAMMA * next_states_values.view((next_states_values.shape[0], 1))
+    expected_values: torch.FloatTensor = rewards + GAMMA * next_states_values.view((next_states_values.shape[0], 1))
     # DQN reg loss
     return F.mse_loss(action_values, expected_values) + torch.mean(K * q_values)
 
 
-def optimize_model(writer, training_step):
-    total_loss = 0.0
+def optimize_model(writer, training_step: int):
+    total_loss: float = 0.0
     for _ in range(TRAIN_FREQUENCY * EPISODES // BATCH_SIZE):
         states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
         # Convert to correct type tensors
-        states = states.float().to(device)
-        actions = actions.float().to(device)
-        rewards = rewards.float().to(device)
-        next_states = next_states.float().to(device)
+        states = states.to(device)
+        actions = actions.to(device)
+        rewards = rewards.to(device)
+        next_states = next_states.to(device)
 
         # Set to train mode
         model.train()
