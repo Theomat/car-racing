@@ -47,7 +47,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         data: List[env_runner.Episode] = env_runner.run_episodes(current_policy, train_frequency, max_steps, render)
         # Log Train rewards
         train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in data]
-        writer.add_histogram("Reward/Test", torch.from_numpy(np.array(train_rewards)), i_training_step)
+        writer.add_histogram("Reward/Train", torch.from_numpy(np.array(train_rewards)), i_training_step)
         # Store data
         replay_buffer.clear()
         replay_buffer.store(data)
@@ -56,8 +56,8 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         # Train step
         optimize_model(writer, i_training_step)
         # Evaluation step
-        # if test_performance_episodes > 0:
-        #     rewards: List[float] = env_runner.evaluate(policy, test_performance_episodes, max_steps)
-        #     writer.add_histogram("Reward/Test", torch.from_numpy(np.array(rewards)), i_training_step)
+        if test_performance_episodes > 0:
+            rewards: List[float] = env_runner.evaluate(policy, test_performance_episodes, max_steps)
+            writer.add_histogram("Reward/Test", torch.from_numpy(np.array(rewards)), i_training_step)
     pbar.close()
     writer.close()
