@@ -31,7 +31,8 @@ def __to_torch(observation: np.ndarray) -> torch.FloatTensor:
 
 
 def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
-                 render: bool = False, frames_stack: int = 4) -> List[Episode]:
+                 render: bool = False, frames_stack: int = 4,
+                 neg_steps_early_stop: int = 10) -> List[Episode]:
     """
     Run a certain number of episodes given the specific policy.
 
@@ -42,6 +43,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
     - **max_steps**: the maximum number of steps allowed within the environment
     - **render**: whether to render the environment or not
     - **frames_stack**: the number of frames stacked for a state
+    - **neg_steps_early_stop**: the number of consecutive negative rewards steps before early stopping
 
     Return:
     ============
@@ -56,11 +58,20 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
         for i in range(frames_stack):
             state[i, :, :] = torch_observation.clone()
         episode_data: Episode = []
+        negative: int = 0
         for t in range(max_steps):
             if render:
                 env.render()
             discrete_action: int = policy(state, i_episode, episodes)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
+            # Early episode stopping
+            if reward < 0:
+                negative += 1
+                if negative == neg_steps_early_stop:
+                    break
+            else:
+                negative = 0
+
             new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
             episode_data.append((state, discrete_action, reward, info, new_state))
             state: torch.FloatTensor = new_state
