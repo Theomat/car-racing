@@ -7,11 +7,12 @@ import torch
 
 class UniformReplayBuffer:
 
-    def __init__(self, size: int = 10000, seed: int = 0):
+    def __init__(self, size: int = 10000, frames_stack: int = 4, seed: int = 0):
         self._size: int = size
         self._memory: List[Transition] = []
         self.generator: np.random.Generator = np.random.default_rng(seed)
         self._buffer = None
+        self.frames_stack = frames_stack
 
     def store(self, episodes: List[Episode]):
         for episode in episodes:
@@ -26,8 +27,8 @@ class UniformReplayBuffer:
 
     def sample(self, size: int) -> Tuple[torch.FloatTensor, torch.LongTensor, torch.FloatTensor, torch.FloatTensor]:
         if self._buffer is None or self._buffer[0].shape[0] != size:
-            self._buffer = [torch.zeros((size, 4, 96, 96)), torch.zeros((size, 1), dtype=torch.int64),
-                            torch.zeros((size, 1)), torch.zeros((size, 4, 96, 96))]
+            self._buffer = [torch.zeros((size, self.frames_stack, 96, 96)), torch.zeros((size, 1), dtype=torch.int64),
+                            torch.zeros((size, 1)), torch.zeros((size, self.frames_stack, 96, 96))]
         memories = self.generator.integers(0, len(self._memory), size, dtype=np.int)
         for i, index in enumerate(memories):
             sample = self._memory[index]

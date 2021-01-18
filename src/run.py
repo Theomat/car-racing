@@ -15,6 +15,7 @@ device_name: str = "cpu" if device == "cpu" else torch.cuda.get_device_name(0)
 print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
+FRAMES_STACK = 3
 TRAIN_FREQUENCY = 5
 MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY
 EPISODES = 1000
@@ -26,8 +27,8 @@ L2_REG_COEFF = 1e-4
 GAMMA = .98
 K = .1
 # Instanciation ===============================================================
-model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION).float().to(device)
-replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE)
+model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
+replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE, FRAMES_STACK)
 epsilon: annealing.Annealing = annealing.linear(EPS_START, 0, EPISODES)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
@@ -72,4 +73,4 @@ def optimize_model(writer, training_step: int):
 # Run =========================================================================
 print(model)
 trainer.train(policy, optimize_model, epsilon, replay_buffer,
-              EPISODES, TRAIN_FREQUENCY, TEST_EPISODES, MAX_STEPS)
+              EPISODES, TRAIN_FREQUENCY, FRAMES_STACK, TEST_EPISODES, MAX_STEPS)
