@@ -33,7 +33,7 @@ MAX_CONSECUTIVE_NEGATIVE_STEPS = 25
 model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 target_model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE, FRAMES_STACK)
-epsilon: annealing.Annealing = annealing.linear(EPS_START, 0, EPISODES)
+epsilon: annealing.Annealing = annealing.exponential(EPS_START, 0, 200)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
