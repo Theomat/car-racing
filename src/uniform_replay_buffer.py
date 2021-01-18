@@ -24,9 +24,9 @@ class UniformReplayBuffer:
     def clear(self):
         self._memory = []
 
-    def sample(self, size: int) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    def sample(self, size: int) -> Tuple[torch.FloatTensor, torch.LongTensor, torch.FloatTensor, torch.FloatTensor]:
         if self._buffer is None or self._buffer[0].shape[0] != size:
-            self._buffer = [torch.zeros((size, 4, 96, 96)), torch.zeros((size, 1)),
+            self._buffer = [torch.zeros((size, 4, 96, 96)), torch.zeros((size, 1), dtype=torch.int64),
                             torch.zeros((size, 1)), torch.zeros((size, 4, 96, 96))]
         memories = self.generator.integers(0, len(self._memory), size, dtype=np.int)
         for i, index in enumerate(memories):
