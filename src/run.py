@@ -21,6 +21,7 @@ MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY
 EPISODES = 1000
 TEST_EPISODES = 0
 BATCH_SIZE = 32
+BATCH_PER_TRAINING_STEP = 10
 EPS_START = .7
 LR = 1e-4
 L2_REG_COEFF = 1e-3
@@ -50,7 +51,7 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
 
 def optimize_model(writer, training_step: int):
     total_loss: float = 0.0
-    for _ in range(TRAIN_FREQUENCY * MAX_STEPS // BATCH_SIZE):
+    for _ in range(BATCH_PER_TRAINING_STEP * BATCH_SIZE):
         states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
         # Convert to correct type tensors
         states = states.to(device)
