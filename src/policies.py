@@ -21,6 +21,5 @@ def to_epsilon_greedy(policy: Policy, epsilon: Callable[[int], float]) -> Traini
 
 def from_model(model: nn.Module) -> Policy:
     def policy(state: torch.FloatTensor) -> int:
-        ordered_q_values = model(state.unsqueeze(0)).argsort(descending=True)[0]
-        return ordered_q_values[0].item()
+        return model(state.unsqueeze(0)).max(1)[1].item()
     return policy
