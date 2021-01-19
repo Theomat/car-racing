@@ -53,7 +53,7 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
     next_state_values[non_final_mask] = target_model(non_final_next_states.view((-1, FRAMES_STACK, 96, 96))).max(1)[0].detach()
     expected_values: torch.FloatTensor = rewards + GAMMA * next_state_values.view((rewards.shape[0], 1))
     # DQN reg loss
-    return F.mse_loss(action_values, expected_values)  # + torch.mean(K * q_values)
+    return F.mse_loss(action_values, expected_values) + torch.mean(K * action_values)
 
 
 def optimize_model(writer, training_step: int):
