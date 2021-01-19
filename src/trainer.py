@@ -46,8 +46,9 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
     pbar = tqdm.tqdm(total=episodes, desc="episodes")
     for i_training_step in range(episodes // train_frequency):
         # Produce data by interaction
-        current_policy: TrainingPolicy = to_epsilon_greedy(policy,
-                                                           annealing.translated(i_training_step * train_frequency, epsilon))
+        epsilon_annealing: Callable[[int], float] = annealing.translated(i_training_step * train_frequency, epsilon)
+        current_policy: TrainingPolicy = to_epsilon_greedy(policy, epsilon_annealing)
+        writer.add_scalar("Epsilon", epsilon_annealing(0), i_training_step)
         data: List[env_runner.Episode] = env_runner.run_episodes(current_policy, train_frequency,
                                                                  max_steps=max_steps,
                                                                  render=render,
@@ -56,6 +57,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         # Log Train rewards
         train_rewards: List[float] = [sum([r for _, _, r, _, _ in episode]) for episode in data]
         writer.add_histogram("Reward/Train", torch.from_numpy(np.array(train_rewards)), i_training_step)
+        writer.add_scalar("Mean Reward/Train", np.mean(train_rewards), i_training_step)
         # Store data
         replay_buffer.store(data)
         # Update progress bar
@@ -66,5 +68,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         if test_performance_episodes > 0:
             rewards: List[float] = env_runner.evaluate(policy, test_performance_episodes, max_steps, frames_stack)
             writer.add_histogram("Reward/Test", torch.from_numpy(np.array(rewards)), i_training_step)
+            writer.add_scalar("Mean Reward/Test", np.mean(rewards), i_training_step)
+
     pbar.close()
     writer.close()
