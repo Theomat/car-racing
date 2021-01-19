@@ -37,6 +37,8 @@ epsilon: annealing.Annealing = annealing.exponential(EPS_START, 0, 200)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
+target_model.eval()
+
 
 # Functions====================================================================
 def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
@@ -58,15 +60,14 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
 
 def optimize_model(writer, training_step: int):
     total_loss: float = 0.0
+    # Set to train mode
+    model.train()
     for _ in range(BATCH_PER_TRAINING_STEP * BATCH_SIZE):
         states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
         # Convert to correct type tensors
         states = states.to(device)
         actions = actions.to(device)
         rewards = rewards.to(device)
-
-        # Set to train mode
-        model.train()
 
         loss = loss_function(states, actions, rewards, next_states)
         optimizer.zero_grad()
@@ -92,4 +93,5 @@ trainer.train(policy, optimize_model, epsilon, replay_buffer,
               frames_stack=FRAMES_STACK,
               test_performance_episodes=TEST_EPISODES,
               max_steps=MAX_STEPS,
-              max_negative_steps=MAX_CONSECUTIVE_NEGATIVE_STEPS)
+              max_negative_steps=MAX_CONSECUTIVE_NEGATIVE_STEPS,
+              render=False)
