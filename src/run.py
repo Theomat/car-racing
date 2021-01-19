@@ -23,7 +23,7 @@ TEST_EPISODES = 0
 BATCH_SIZE = 32
 BATCH_PER_TRAINING_STEP = 10
 EPS_START = .7
-LR = 1e-4
+LR = 1e-3
 L2_REG_COEFF = 1e-3
 GAMMA = .98
 K = .1
@@ -71,6 +71,8 @@ def optimize_model(writer, training_step: int):
         loss = loss_function(states, actions, rewards, next_states)
         optimizer.zero_grad()
         loss.backward()
+        for param in model.parameters():
+            param.grad.data.clamp_(-1, 1)
         optimizer.step()
 
         total_loss += loss.item()
