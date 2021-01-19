@@ -32,7 +32,7 @@ def __to_torch(observation: np.ndarray) -> torch.FloatTensor:
 
 def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
                  render: bool = False, frames_stack: int = 4,
-                 neg_steps_early_stop: int = 10) -> List[Episode]:
+                 neg_steps_early_stop: int = 10) -> Tuple[List[Episode], List[int]]:
     """
     Run a certain number of episodes given the specific policy.
 
@@ -52,6 +52,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
     env = gym.make('CarRacing-v0')
     episodic_data: List[Episode] = []
     state: torch.FloatTensor = torch.zeros((frames_stack, 96, 96), dtype=torch.float).to(device)
+    durations: List[int] = []
     for i_episode in range(episodes):
         observation: np.ndarray = env.reset()
         # Initialize state
@@ -76,13 +77,16 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
             # Compute new state
             if done:
                 episode_data.append((state, discrete_action, reward, done, None))
+                durations.append(t + 1)
                 break
             new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
             episode_data.append((state, discrete_action, reward, done, new_state))
             state: torch.FloatTensor = new_state
+        if len(durations) != i_episode + 1:
+            durations.append(max_steps)
         episodic_data.append(episode_data)
     env.close()
-    return episodic_data
+    return episodic_data, durations
 
 
 def evaluate(policy: Policy, episodes: int, max_steps: int = 10000,
