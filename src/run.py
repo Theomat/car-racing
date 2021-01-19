@@ -28,7 +28,7 @@ L2_REG_COEFF = 1e-3
 GAMMA = .98
 K = .1
 TARGET_MODEL_UPDATE_FREQUENCY = 5
-MAX_CONSECUTIVE_NEGATIVE_STEPS = 25
+MAX_CONSECUTIVE_NEGATIVE_STEPS = -1
 # Instanciation ===============================================================
 model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 target_model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
@@ -41,10 +41,17 @@ optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 # Functions====================================================================
 def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
                   rewards: torch.FloatTensor, next_states: torch.FloatTensor) -> torch.FloatTensor:
+
     q_values: torch.FloatTensor = model(states)
     action_values: torch.FloatTensor = torch.gather(q_values, 1, actions)
-    next_states_values, _ = target_model(next_states).max(1)
-    expected_values: torch.FloatTensor = rewards + GAMMA * next_states_values.view((next_states_values.shape[0], 1))
+
+    non_final_mask: torch.BoolTensor = torch.tensor(tuple(map(lambda s: s is not None, next_states)),
+                                                    device=device, dtype=torch.bool)
+    non_final_next_states: torch.FloatTensor = torch.cat([s for s in next_states if s is not None])
+
+    next_state_values = torch.zeros(BATCH_SIZE, device=device)
+    next_state_values[non_final_mask] = target_model(non_final_next_states.view((-1, FRAMES_STACK, 96, 96))).max(1)[0].detach()
+    expected_values: torch.FloatTensor = rewards + GAMMA * next_state_values.view((rewards.shape[0], 1))
     # DQN reg loss
     return F.mse_loss(action_values, expected_values)  # + torch.mean(K * q_values)
 
@@ -57,7 +64,6 @@ def optimize_model(writer, training_step: int):
         states = states.to(device)
         actions = actions.to(device)
         rewards = rewards.to(device)
-        next_states = next_states.to(device)
 
         # Set to train mode
         model.train()
