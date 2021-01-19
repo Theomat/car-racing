@@ -37,6 +37,8 @@ epsilon: annealing.Annealing = annealing.exponential(EPS_START, 0, 200)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
+# Init target net
+target_model.load_state_dict(model.state_dict())
 target_model.eval()
 
 
