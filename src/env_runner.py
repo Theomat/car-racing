@@ -1,4 +1,4 @@
-from typing import List, Any, Tuple
+from typing import List, Tuple
 from discretize import action_discrete2continous
 from policies import Policy, TrainingPolicy
 
@@ -8,7 +8,7 @@ import torch
 import gym
 
 
-Transition = Tuple[torch.FloatTensor, int, float, Any, torch.FloatTensor]
+Transition = Tuple[torch.FloatTensor, int, float, bool, torch.FloatTensor]
 Episode = List[Transition]
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -54,9 +54,11 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
     state: torch.FloatTensor = torch.zeros((frames_stack, 96, 96), dtype=torch.float).to(device)
     for i_episode in range(episodes):
         observation: np.ndarray = env.reset()
+        # Initialize state
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
             state[i, :, :] = torch_observation.clone()
+
         episode_data: Episode = []
         negative: int = 0
         for t in range(max_steps):
@@ -71,9 +73,9 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
                     break
             else:
                 negative = 0
-
+            # Compute new state
             new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
-            episode_data.append((state, discrete_action, reward, info, new_state))
+            episode_data.append((state, discrete_action, reward, done, new_state))
             state: torch.FloatTensor = new_state
             if done:
                 break
