@@ -27,12 +27,13 @@ def __shift_add_tensor(state: torch.FloatTensor, new_tensor: torch.FloatTensor):
 
 
 def __to_torch(observation: np.ndarray) -> torch.FloatTensor:
-    return torch.from_numpy(observation.copy()).float()
+    return torch.from_numpy(observation.copy()).float() / .5 - 1
 
 
 def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
                  render: bool = False, frames_stack: int = 4,
-                 neg_steps_early_stop: int = 10) -> Tuple[List[Episode], List[int]]:
+                 neg_steps_early_stop: int = 10,
+                 skip_zoom: bool = True) -> Tuple[List[Episode], List[int]]:
     """
     Run a certain number of episodes given the specific policy.
 
@@ -44,6 +45,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
     - **render**: whether to render the environment or not
     - **frames_stack**: the number of frames stacked for a state
     - **neg_steps_early_stop**: the number of consecutive negative rewards steps before early stopping
+    - **skip_zoom**: skip the initial zooming
 
     Return:
     ============
@@ -55,22 +57,31 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
     durations: List[int] = []
     for i_episode in range(episodes):
         observation: np.ndarray = env.reset()
+
+        episode_data: Episode = []
+        negative: int = 0
+
+        # Try skip zoom
+        if skip_zoom:
+            for _ in range(60):
+                observation, _, _, _ = env.step([0, 0, 0])
+
         # Initialize state
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
             state[i, :, :] = torch_observation.clone()
 
-        episode_data: Episode = []
-        negative: int = 0
         for t in range(max_steps):
             if render:
                 env.render()
             discrete_action: int = policy(state, i_episode, episodes)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
+            # reward: float = np.clip(reward, -1, 1)
             # Early episode stopping
             if reward < 0:
                 negative += 1
                 if negative == neg_steps_early_stop:
+                    durations.append(t + 1)
                     break
             else:
                 negative = 0
@@ -90,7 +101,8 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
 
 
 def evaluate(policy: Policy, episodes: int, max_steps: int = 10000,
-             render: bool = False, frames_stack: int = 4) -> List[float]:
+             render: bool = False, frames_stack: int = 4,
+             skip_zoom: bool = True) -> List[float]:
     """
     Run a certain number of episodes given the specific policy to evaluate it.
 
@@ -112,7 +124,13 @@ def evaluate(policy: Policy, episodes: int, max_steps: int = 10000,
     state: torch.FloatTensor = torch.zeros((frames_stack, 96, 96), dtype=torch.float).to(device)
     for i_episode in range(episodes):
         observation: np.ndarray = env.reset()
-        torch_observation: torch.FloatTensor = __to_torch(observation).to(device)
+        # Try skip zoom
+        if skip_zoom:
+            for _ in range(60):
+                observation, _, _, _ = env.step([0, 0, 0])
+
+        # Initialize state
+        torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
             state[i, :, :] = torch_observation.clone()
         episode_reward: float = 0
