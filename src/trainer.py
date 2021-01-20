@@ -21,7 +21,8 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
           test_performance_episodes: int = 0,
           max_steps: int = 10000,
           max_negative_steps: int = 25,
-          render: bool = False):
+          renderTrain: bool = False,
+          renderTest: bool = False):
     """
     Train given the specified policy and optimizing with the given callback.
 
@@ -39,7 +40,8 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         if <= 0 no test performance is tracked
     - **max_steps**: maximum number of steps allowed within the environment in each episode
     - **max_negative_steps**: maximum number of consecutive negative steps before early stopping
-    - **render**: whether or not to render the environment
+    - **renderTrain**: whether or not to render the environment during training
+    - **renderTest**: whether or not to render the environment during testing
     """
     writer: SummaryWriter = SummaryWriter()
 
@@ -51,7 +53,7 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         writer.add_scalar("Epsilon", epsilon_annealing(0), i_training_step)
         episode_data, durations = env_runner.run_episodes(current_policy, train_frequency,
                                                           max_steps=max_steps,
-                                                          render=render,
+                                                          render=renderTrain,
                                                           frames_stack=frames_stack,
                                                           neg_steps_early_stop=max_negative_steps)
         # Log Train rewards
@@ -70,7 +72,8 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         if test_performance_episodes > 0:
             rewards: List[float] = env_runner.evaluate(policy, test_performance_episodes,
                                                        max_steps=max_steps,
-                                                       frames_stack=frames_stack)
+                                                       frames_stack=frames_stack,
+                                                       render=renderTest)
             writer.add_histogram("Reward/Test", torch.from_numpy(np.array(rewards)), i_training_step)
             writer.add_scalar("Mean Reward/Test", np.mean(rewards), i_training_step)
 
