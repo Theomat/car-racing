@@ -5,6 +5,8 @@ import annealing
 import trainer
 import policies
 
+from typing import List
+
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -16,19 +18,19 @@ print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
 FRAMES_STACK = 3
-TRAIN_FREQUENCY = 2
+TRAIN_FREQUENCY = 5
 MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY
 EPISODES = 1000
 TEST_EPISODES = 0
-BATCH_SIZE = 32
-BATCH_PER_TRAINING_STEP = 10
-EPS_START = .7
+BATCH_SIZE = 16
+BATCH_PER_TRAINING_STEP = 1280 // BATCH_SIZE
+EPS_START = 1
 LR = 1e-3
-L2_REG_COEFF = 1e-3
+L2_REG_COEFF = 1e-4
 GAMMA = .98
-K = .1
-TARGET_MODEL_UPDATE_FREQUENCY = 5
-MAX_CONSECUTIVE_NEGATIVE_STEPS = -1
+K = 0
+TARGET_MODEL_UPDATE_FREQUENCY = 3
+MAX_CONSECUTIVE_NEGATIVE_STEPS = 20
 # Instanciation ===============================================================
 model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 target_model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
@@ -37,6 +39,9 @@ epsilon: annealing.Annealing = annealing.exponential(EPS_START, 0, 200)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
+
+# Init model
+model.eval()
 # Init target net
 target_model.load_state_dict(model.state_dict())
 target_model.eval()
@@ -44,7 +49,8 @@ target_model.eval()
 
 # Functions====================================================================
 def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
-                  rewards: torch.FloatTensor, next_states: torch.FloatTensor) -> torch.FloatTensor:
+                  rewards: torch.FloatTensor, next_states: List[torch.FloatTensor],
+                  writer, step: int) -> torch.FloatTensor:
 
     q_values: torch.FloatTensor = model(states)
     action_values: torch.FloatTensor = torch.gather(q_values, 1, actions)
@@ -56,22 +62,29 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     next_state_values[non_final_mask] = target_model(non_final_next_states.view((-1, FRAMES_STACK, 96, 96))).max(1)[0].detach()
     expected_values: torch.FloatTensor = rewards + GAMMA * next_state_values.view((rewards.shape[0], 1))
+
+    if writer is not None:
+        residual_variance: float = (torch.var(expected_values - action_values) / torch.var(action_values)).item()
+        writer.add_scalar('Residual Variance', residual_variance, step)
+        writer.add_histogram('Action Values/Predicted', action_values, step)
+        writer.add_histogram('Action Values/Target', expected_values, step)
+        writer.add_histogram('Action Values/Error', expected_values - action_values, step)
     # DQN reg loss
-    return F.mse_loss(action_values, expected_values) + torch.mean(K * action_values)
+    return F.mse_loss(action_values, expected_values) + K * torch.mean(action_values)
 
 
 def optimize_model(writer, training_step: int):
     total_loss: float = 0.0
     # Set to train mode
     model.train()
-    for _ in range(BATCH_PER_TRAINING_STEP * BATCH_SIZE):
+    for i in range(BATCH_PER_TRAINING_STEP):
         states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
         # Convert to correct type tensors
         states = states.to(device)
         actions = actions.to(device)
         rewards = rewards.to(device)
 
-        loss = loss_function(states, actions, rewards, next_states)
+        loss = loss_function(states, actions, rewards, next_states, writer, BATCH_PER_TRAINING_STEP * training_step + i)
         optimizer.zero_grad()
         loss.backward()
         for param in model.parameters():
