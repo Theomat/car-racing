@@ -68,7 +68,9 @@ def train(policy: Policy, optimize_model: Callable[[SummaryWriter, int], Literal
         optimize_model(writer, i_training_step)
         # Evaluation step
         if test_performance_episodes > 0:
-            rewards: List[float] = env_runner.evaluate(policy, test_performance_episodes, max_steps, frames_stack)
+            rewards: List[float] = env_runner.evaluate(policy, test_performance_episodes,
+                                                       max_steps=max_steps,
+                                                       frames_stack=frames_stack)
             writer.add_histogram("Reward/Test", torch.from_numpy(np.array(rewards)), i_training_step)
             writer.add_scalar("Mean Reward/Test", np.mean(rewards), i_training_step)
 
