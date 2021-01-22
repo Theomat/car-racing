@@ -60,11 +60,13 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
 
         episode_data: Episode = []
         negative: int = 0
+        episode_reward: int = 0
 
         # Try skip zoom
         if skip_zoom:
-            for _ in range(60):
-                observation, _, _, _ = env.step([0, 0, 0])
+            for _ in range(50):
+                observation, r, _, _ = env.step([0, 0, 0])
+                episode_reward += r
 
         # Initialize state
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
@@ -76,20 +78,24 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
                 env.render()
             discrete_action: int = policy(state, i_episode, episodes)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
-            # reward: float = np.clip(reward, -1, 1)
+
+            episode_reward += reward
+            if episode_reward < 0:
+                durations.append(t + 1)
+                break
             # Early episode stopping
-            if reward < 0:
+            if reward < 0 and t > 300:
                 negative += 1
                 if negative == neg_steps_early_stop:
                     durations.append(t + 1)
                     break
             else:
                 negative = 0
-            # Compute new state
             if done:
                 episode_data.append((state, discrete_action, reward, done, None))
                 durations.append(t + 1)
                 break
+            # Compute new state
             new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
             episode_data.append((state, discrete_action, reward, done, new_state))
             state: torch.FloatTensor = new_state
@@ -126,7 +132,7 @@ def evaluate(policy: Policy, episodes: int, max_steps: int = 10000,
         observation: np.ndarray = env.reset()
         # Try skip zoom
         if skip_zoom:
-            for _ in range(60):
+            for _ in range(50):
                 observation, _, _, _ = env.step([0, 0, 0])
 
         # Initialize state
