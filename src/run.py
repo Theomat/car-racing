@@ -18,24 +18,24 @@ print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
 FRAMES_STACK = 3
-TRAIN_FREQUENCY = 5
-MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY
-EPISODES = 1000
+TRAIN_FREQUENCY = 1
+MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY * 5
+EPISODES = 5000
 TEST_EPISODES = 0
-BATCH_SIZE = 16
-BATCH_PER_TRAINING_STEP = 1280 // BATCH_SIZE
+BATCH_SIZE = 32
+BATCH_PER_TRAINING_STEP = 128 // BATCH_SIZE
 EPS_START = 1
 LR = 1e-3
-L2_REG_COEFF = 1e-4
-GAMMA = .98
+L2_REG_COEFF = 1e-7
+GAMMA = .95
 K = 0
-TARGET_MODEL_UPDATE_FREQUENCY = 3
-MAX_CONSECUTIVE_NEGATIVE_STEPS = 20
+TARGET_MODEL_UPDATE_FREQUENCY = 2
+MAX_CONSECUTIVE_NEGATIVE_STEPS = 25
 # Instanciation ===============================================================
 model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 target_model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE, FRAMES_STACK)
-epsilon: annealing.Annealing = annealing.exponential(EPS_START, 0, 200)
+epsilon: annealing.Annealing = annealing.linear(EPS_START, 0.05, 2000)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
@@ -109,4 +109,5 @@ trainer.train(policy, optimize_model, epsilon, replay_buffer,
               test_performance_episodes=TEST_EPISODES,
               max_steps=MAX_STEPS,
               max_negative_steps=MAX_CONSECUTIVE_NEGATIVE_STEPS,
-              render=False)
+              renderTrain=False,
+              renderTest=True)
