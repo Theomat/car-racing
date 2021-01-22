@@ -17,6 +17,14 @@ ACTION_SPACE: Tuple[np.ndarray] = (
     np.array([1, 0, 0.]),
     np.array([1, 0, .2]),
 )
+
+REDUCED_ACTION_SPACE: Tuple[np.ndarray] = (
+    np.array([-1, 0, 0.]),
+    np.array([0, 1, 0.]),
+    np.array([0, 0, 0.]),
+    np.array([0, 0, .2]),
+    np.array([1, 0, 0.]),
+)
 MAX_ACTION: int = len(ACTION_SPACE)
 
 
