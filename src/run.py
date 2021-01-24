@@ -17,7 +17,7 @@ device_name: str = "cpu" if device == "cpu" else torch.cuda.get_device_name(0)
 print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
-FRAMES_STACK = 3
+FRAMES_STACK = 4
 TRAIN_FREQUENCY = 1
 MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY * 5
 EPISODES = 5000
@@ -30,12 +30,14 @@ L2_REG_COEFF = 1e-7
 GAMMA = .95
 K = 0
 TARGET_MODEL_UPDATE_FREQUENCY = 2
-MAX_CONSECUTIVE_NEGATIVE_STEPS = 25
+MAX_CONSECUTIVE_NEGATIVE_STEPS = 50
+SAVE_EVERY = 500
+
 # Instanciation ===============================================================
 model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 target_model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE, FRAMES_STACK)
-epsilon: annealing.Annealing = annealing.linear(EPS_START, 0.05, 2000)
+epsilon: annealing.Annealing = annealing.linear(EPS_START, 0.05, 3000)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
@@ -100,6 +102,8 @@ def optimize_model(writer, training_step: int):
     if training_step % (TRAIN_FREQUENCY * TARGET_MODEL_UPDATE_FREQUENCY) == 0:
         target_model.load_state_dict(model.state_dict())
 
+    if training_step % SAVE_EVERY == 0:
+        torch.save(model.state_dict(), f'model_{training_step}.pth')
 
 # Run =========================================================================
 print(model)
@@ -111,3 +115,4 @@ trainer.train(policy, optimize_model, epsilon, replay_buffer,
               max_negative_steps=MAX_CONSECUTIVE_NEGATIVE_STEPS,
               renderTrain=False,
               renderTest=True)
+torch.save(model.state_dict(), f'model_latest.pth')

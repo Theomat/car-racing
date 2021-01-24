@@ -10,11 +10,11 @@ def constant(constant: float) -> Annealing:
 
 
 def linear(start: float, end: float, duration: int) -> Annealing:
-    return lambda i: start + (end - start) * i / duration
+    return lambda i: max(start + (end - start) * i / duration, end)
 
 
 def exponential(start: float, end: float, decay: float) -> Annealing:
-    return lambda i: end + (start - end) * np.exp(- i / decay)
+    return lambda i: max(end + (start - end) * np.exp(- i / decay), end)
 
 
 def translated(translation: int, annealing: Annealing) -> Annealing:
