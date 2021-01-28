@@ -21,5 +21,7 @@ def to_epsilon_greedy(policy: Policy, epsilon: Callable[[int], float]) -> Traini
 
 def from_model(model: nn.Module) -> Policy:
     def policy(state: torch.FloatTensor) -> int:
-        return model(state.unsqueeze(0)).max(1)[1].item()
+        with torch.no_grad():
+            action: int = torch.argmax(model(state.unsqueeze(0)), axis=1).item()
+        return action
     return policy

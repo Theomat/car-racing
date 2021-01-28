@@ -15,19 +15,21 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 def __rgb2gray(observation: np.ndarray) -> np.ndarray:
-    gray = 0.2989 * observation[:, :, 0] + 0.5870 * observation[:, :, 1] + 0.1140 * observation[:, :, 2]
+    # gray = 0.2989 * observation[:, :, 0] + 0.5870 * observation[:, :, 1] + 0.1140 * observation[:, :, 2]
     #gray = np.uint8(gray)
-    return gray
+    # return gray
+    return observation
 
 
 def __shift_add_tensor(state: torch.FloatTensor, new_tensor: torch.FloatTensor):
     state = torch.roll(state, -1, 0)
-    state[-1, :, :] = new_tensor
+    state[-1, :] = new_tensor
+    # state[-1, :, :] = new_tensor
     return state
 
 
 def __to_torch(observation: np.ndarray) -> torch.FloatTensor:
-    return torch.from_numpy(observation.copy()).float() / .5 - 1
+    return torch.from_numpy(observation.copy()).float()  # / .5 - 1
 
 
 def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
@@ -51,9 +53,11 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
     ============
     The list of transition data for each episode.
     """
-    env = gym.make('CarRacing-v0')
+    # env = gym.make('CarRacing-v0')
+    env = gym.make('CartPole-v1')
     episodic_data: List[Episode] = []
-    state: torch.FloatTensor = torch.zeros((frames_stack, 96, 96), dtype=torch.float).to(device)
+    # state: torch.FloatTensor = torch.zeros((frames_stack, 96, 96), dtype=torch.float).to(device)
+    state: torch.FloatTensor = torch.zeros((frames_stack, 4), dtype=torch.float).to(device)
     durations: List[int] = []
     for i_episode in range(episodes):
         observation: np.ndarray = env.reset()
@@ -71,14 +75,16 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
         # Initialize state
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
-            state[i, :, :] = torch_observation.clone()
+            # state[i, :, :] = torch_observation.clone()
+            state[i, :] = torch_observation.clone()
 
         for t in range(max_steps):
             if render:
                 env.render()
             discrete_action: int = policy(state, i_episode, episodes)
-            observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
-            
+            observation, reward, done, info = env.step(discrete_action)
+            # observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
+
             # reward = min(reward, 1.0)
             episode_reward += reward
             if episode_reward < 0:
@@ -99,7 +105,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
             # Compute new state
             new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
             episode_data.append((state, discrete_action, reward, done, new_state))
-            state: torch.FloatTensor = new_state
+            state: torch.FloatTensor = new_state.clone()
         if len(durations) != i_episode + 1:
             durations.append(max_steps)
         episodic_data.append(episode_data)

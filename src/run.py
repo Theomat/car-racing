@@ -4,6 +4,7 @@ import discretize
 import annealing
 import trainer
 import policies
+import debug
 
 from typing import List
 
@@ -18,18 +19,18 @@ print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
 FRAMES_STACK = 4
-TRAIN_FREQUENCY = 1
+TRAIN_FREQUENCY = 5
 MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY * 5
 EPISODES = 5000
 TEST_EPISODES = 0
 BATCH_SIZE = 32
-BATCH_PER_TRAINING_STEP = 128 // BATCH_SIZE
+BATCH_PER_TRAINING_STEP = TRAIN_FREQUENCY * 64 // BATCH_SIZE
 EPS_START = 1
 LR = 1e-3
 L2_REG_COEFF = 1e-7
-GAMMA = .95
+GAMMA = 1
 K = 0
-TARGET_MODEL_UPDATE_FREQUENCY = 2
+TARGET_MODEL_UPDATE_FREQUENCY = 100
 MAX_CONSECUTIVE_NEGATIVE_STEPS = 50
 SAVE_EVERY = 500
 
@@ -60,19 +61,22 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
     non_final_mask: torch.BoolTensor = torch.tensor(tuple(map(lambda s: s is not None, next_states)),
                                                     device=device, dtype=torch.bool)
     non_final_next_states: torch.FloatTensor = torch.cat([s for s in next_states if s is not None])
+    # non_final_next_states = non_final_next_states.view((-1, FRAMES_STACK, 96, 96))
+    non_final_next_states = non_final_next_states.view((-1, FRAMES_STACK, 4))
 
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    next_state_values[non_final_mask] = target_model(non_final_next_states.view((-1, FRAMES_STACK, 96, 96))).max(1)[0].detach()
-    expected_values: torch.FloatTensor = rewards + GAMMA * next_state_values.view((rewards.shape[0], 1))
+    with torch.no_grad():
+        next_state_values[non_final_mask] = target_model(non_final_next_states).max(1)[0]
+    expected_values: torch.FloatTensor = rewards + GAMMA * next_state_values
 
     if writer is not None:
-        residual_variance: float = (torch.var(expected_values - action_values) / torch.var(action_values)).item()
-        writer.add_scalar('Residual Variance', residual_variance, step)
+        # residual_variance: float = (torch.var(expected_values - action_values) / torch.var(action_values)).item()
+        # writer.add_scalar('Residual Variance', residual_variance, step)
         writer.add_histogram('Action Values/Predicted', action_values, step)
         writer.add_histogram('Action Values/Target', expected_values, step)
         writer.add_histogram('Action Values/Error', expected_values - action_values, step)
     # DQN reg loss
-    return F.mse_loss(action_values, expected_values) + K * torch.mean(action_values)
+    return F.mse_loss(action_values, expected_values.unsqueeze(1)) + K * torch.mean(action_values)
 
 
 def optimize_model(writer, training_step: int):
@@ -91,6 +95,8 @@ def optimize_model(writer, training_step: int):
         loss.backward()
         for param in model.parameters():
             param.grad.data.clamp_(-1, 1)
+        # if i == 0:
+            # debug.plot_grad_flow(model.named_parameters())
         optimizer.step()
 
         total_loss += loss.item()
@@ -105,6 +111,7 @@ def optimize_model(writer, training_step: int):
     if training_step % SAVE_EVERY == 0:
         torch.save(model.state_dict(), f'model_{training_step}.pth')
 
+
 # Run =========================================================================
 print(model)
 trainer.train(policy, optimize_model, epsilon, replay_buffer,
@@ -115,4 +122,4 @@ trainer.train(policy, optimize_model, epsilon, replay_buffer,
               max_negative_steps=MAX_CONSECUTIVE_NEGATIVE_STEPS,
               renderTrain=False,
               renderTest=True)
-torch.save(model.state_dict(), f'model_latest.pth')
+torch.save(model.state_dict(), 'model_latest.pth')

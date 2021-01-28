@@ -16,8 +16,7 @@ class UniformReplayBuffer:
 
     def store(self, episodes: List[Episode]):
         for episode in episodes:
-            for transition in episode:
-                s, a, r, i, ns = transition
+            for s, a, r, i, ns in episode:
                 self._memory.append((s, a, r, ns))
         if len(self._memory) > self._size:
             self._memory = self._memory[-self._size:]
@@ -26,14 +25,20 @@ class UniformReplayBuffer:
         self._memory = []
 
     def sample(self, size: int) -> Tuple[torch.FloatTensor, torch.LongTensor, torch.FloatTensor, torch.FloatTensor]:
-        if self._buffer is None or self._buffer[0].shape[0] != size:
-            self._buffer = [torch.zeros((size, self.frames_stack, 96, 96)), torch.zeros((size, 1), dtype=torch.int64),
-                            torch.zeros((size, 1)), [None for i in range(size)]]
-        memories = self.generator.integers(0, len(self._memory), size, dtype=np.int)
-        for i, index in enumerate(memories):
-            sample = self._memory[index]
-            self._buffer[0][i] = sample[0]
-            self._buffer[1][i] = sample[1]
-            self._buffer[2][i] = sample[2]
-            self._buffer[3][i] = sample[3]
-        return self._buffer[0], self._buffer[1], self._buffer[2], self._buffer[3]
+        # if self._buffer is None or self._buffer[0].shape[0] != size:
+            # self._buffer = [torch.zeros((size, self.frames_stack, 96, 96)), torch.zeros((size, 1), dtype=torch.int64),
+            # self._buffer = [torch.zeros((size, self.frames_stack, 4)), torch.zeros((size, 1), dtype=torch.int64),
+            #                 torch.zeros((size, 1)), [None for i in range(size)]]
+        # memories = self.generator.integers(0, len(self._memory), size, dtype=np.int)
+        # for i, index in enumerate(memories):
+        #     sample = self._memory[index]
+        #     self._buffer[0][i] = sample[0]
+        #     self._buffer[1][i] = sample[1]
+        #     self._buffer[2][i] = sample[2]
+        #     self._buffer[3][i] = sample[3]
+        # return self._buffer
+        memories: List[Transition] = self.generator.choice(self._memory, size, shuffle=False)
+        states: torch.FloatTensor = torch.cat([s for s, _, _, _ in memories]).view((size, self.frames_stack, -1))
+        actions: torch.LongTensor = torch.tensor([a for _, a, _, _ in memories], dtype=torch.int64).view((-1, 1))
+        rewards: torch.FloatTensor = torch.tensor([r for _, _, r, _ in memories])
+        return states, actions, rewards, [ns for _, _, _, ns in memories]
