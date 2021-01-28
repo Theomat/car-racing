@@ -10,28 +10,28 @@ from actions import discrete2cont, NOTHING, ACTION_SPACE
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 
-from torchvision import transforms
 
 from tqdm import tqdm
 
+from copy import deepcopy
 
 EPISODES = 5000
 RENDER = False
 SKIP_ZOOM = True
 FRAME_STACK = 3
-BATCH_SIZE = 64
-GAMMA = 0.99
-LR = 1e-4
+BATCH_SIZE = 256
+GAMMA = 0.96
+LR = 0.001
 MAX_NEG_STEPS = 80
 SAVE_EVERY = 1000
-UPDATE_EVERY = 4
+UPDATE_EVERY = 128
 EARLY_STOP = True
-MEMORY_SIZE = 10000
+MEMORY_SIZE = 5000
 
 EPS_START = 0.9
-EPS_END = 0.01
-EPS_DECAY = 1000
-CLOSE_EVERY = 2
+EPS_END = 0.05
+EPS_DECAY = 0.002
+CLOSE_EVERY = 5
 
 env = gym.make('CarRacing-v0')
 
@@ -42,7 +42,7 @@ policy_net.compile(loss='mean_squared_error', optimizer=optimizer)
 
 memory = ReplayMemory(MEMORY_SIZE)
 
-writer = tf.summary.create_file_writer("/tf_logs")
+writer = tf.summary.create_file_writer("./tf_logs")
 
 
 steps_done = 0
@@ -52,7 +52,7 @@ t_step = 0
 def select_action(state):
     global steps_done
     sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
+    eps_threshold = max(EPS_END, EPS_START - EPS_DECAY * steps_done)
 
     if sample > eps_threshold:
         prediction = policy_net.predict(np.expand_dims(state, axis=0))[0]
@@ -61,16 +61,10 @@ def select_action(state):
         return random.randrange(ACTION_SPACE)
 
 
-transform = transforms.Compose([transforms.ToPILImage(),
-                                transforms.CenterCrop((84, 84)),
-                                transforms.Grayscale(),
-                                transforms.ToTensor()])
-
-
-
 def torchfy(obs):
-    #TODO grayscale
-    return obs[:84, :84, :].copy() / 255.0
+    obs = np.float64(np.uint8(np.dot(obs[...,:3], [0.2989, 0.5870, 0.1140])))
+    return deepcopy(obs[:84, 6:90]) / 255.0
+
 
 
 def optimize_model(call):
@@ -79,19 +73,23 @@ def optimize_model(call):
         return
     transitions = memory.sample(BATCH_SIZE)
     states = np.stack([s for s, _, _, _ in transitions])
-    next_states = np.stack([ns for _, _, _, ns in transitions if ns is not None])
-    next_state_values = policy_net.predict(next_states).amax(1)
+    next_states = np.stack([ns for _, _, ns, _ in transitions if ns is not None])
+
+
+    next_state_values = np.argmax(policy_net.predict(next_states), axis=1)
     target_values = policy_net.predict(states)
     next_state_index = 0
     for i, transition in enumerate(transitions):
-        s, a, r, ns = transition
+        s, a, ns, r = transition
+
         if ns is None:
             target_values[i, a] = r
         else:
             target_values[i, a] = r + GAMMA * next_state_values[next_state_index]
             next_state_index += 1
 
-    policy_net.fit(states, target_values, epochs=1, verbose=0)
+    history = policy_net.fit(states, target_values, epochs=1, batch_size=BATCH_SIZE, verbose=0)
+    return np.mean(history.history['loss'])
 
 
 opt_call = 0
@@ -105,10 +103,10 @@ for episode in tqdm(range(EPISODES)):
             observation, _, _, _ = env.step(NOTHING)
             RENDER and env.render()
 
-    state = np.zeros((FRAME_STACK, 84, 84), dtype=np.float)
+    state = np.zeros((84, 84, FRAME_STACK), dtype=np.float)
 
     for i in range(FRAME_STACK):
-        state[i, :, :] = torchfy(observation)
+        state[:, :, i] = torchfy(observation)
 
     score = 0
     negative = 0
@@ -124,40 +122,48 @@ for episode in tqdm(range(EPISODES)):
 
         # Early episode stopping
         if EARLY_STOP:
-            if reward < 0 and step_counter > 300:
-                negative += 1
-                if negative == MAX_NEG_STEPS:
-                    done = True
-            elif reward > 0:
-                negative = 0
-        prev_state = state.copy()
+            if score < 0 and step_counter > 300:
+                done = True
+
+        prev_state = deepcopy(state)
 
         for i in range(FRAME_STACK-1):
-            state[i, :, :] = state[i + 1, :, :].copy()
-        state[-1, :, :] = torchfy(observation)
+            state[:, :, i] = deepcopy(state[:, :, i + 1])
+        state[:, :, -1] = torchfy(observation)
 
         memory.push(prev_state, action, state, reward)
 
+        '''
         t_step = (t_step + 1) % UPDATE_EVERY
         if t_step == 0:
-            optimize_model(opt_call)
             opt_call += 1
-
+        '''
         RENDER and env.render()
         step_counter += 1
 
+    loss = optimize_model(opt_call)
+
     if episode % CLOSE_EVERY == 0:
         env.close()
+        env = gym.make('CarRacing-v0')
+
 
     if episode % SAVE_EVERY == 0:
         policy_net.save('./model_{}.hd5'.format(episode))
 
     with writer.as_default():
-        tf.summary.write("Reward/Train", score, episode)
-        tf.summary.write("Duration/Train", step_counter, episode)
+        tf.summary.scalar("Reward/Train", score, step=episode)
+        tf.summary.scalar("Duration/Train", step_counter, step=episode)
+        tf.summary.scalar("Loss/Train", loss, step=episode)
 
-        eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
-        tf.summary.write("Epsilon", eps_threshold, episode)
+
+        eps_threshold = max(EPS_END, EPS_START - EPS_DECAY * steps_done)
+        tf.summary.scalar("Epsilon", eps_threshold, step=episode)
+
+        print('score', score, episode)
+        print('duration', step_counter, episode)
+        print("eps", eps_threshold, episode)
+
 
     steps_done += 1
 
