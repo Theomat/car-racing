@@ -5,22 +5,16 @@ import random
 import math
 
 from dqn import DQN
-from replay_memory import ReplayMemory, Transition
+from replay_memory import ReplayMemory
 from actions import discrete2cont, NOTHING, ACTION_SPACE
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
 
 from torchvision import transforms
-from torchvision.transforms.functional import to_pil_image
 
 from tqdm import tqdm
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 EPISODES = 5000
 RENDER = False
@@ -42,70 +36,64 @@ CLOSE_EVERY = 2
 
 env = gym.make('CarRacing-v0')
 
-policy_net = DQN(FRAME_STACK, 84, ACTION_SPACE).double().to(device)
+optimizer = Adam(lr=LR, epsilon=1e-7)
+policy_net = DQN(FRAME_STACK, 84, ACTION_SPACE)
+policy_net.compile(loss='mean_squared_error', optimizer=optimizer)
 
 
 memory = ReplayMemory(MEMORY_SIZE)
-optimizer = optim.Adam(policy_net.parameters(), lr=LR)
+
 writer = SummaryWriter()
 
 
 steps_done = 0
 t_step = 0
+
+
 def select_action(state):
     global steps_done
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
 
     if sample > eps_threshold:
-        with torch.no_grad():
-            # t.max(1) will return largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            return policy_net(state.unsqueeze(0)).max(1)[1].view(1, 1)
+        prediction = policy_net.predict(np.expand_dims(state, axis=0))[0]
+        return np.argmax(prediction)
     else:
-        return torch.tensor([[random.randrange(ACTION_SPACE)]], device=device, dtype=torch.long)
+        return random.randrange(ACTION_SPACE)
+
 
 transform = transforms.Compose([transforms.ToPILImage(),
                                 transforms.CenterCrop((84, 84)),
                                 transforms.Grayscale(),
                                 transforms.ToTensor()])
+
+
+
 def torchfy(obs):
-    return transform(obs[:84, :, :]).to(device).clone().squeeze(0)
+    #TODO grayscale
+    return obs[:84, :84, :].copy() / 255.0
+
 
 def optimize_model(call):
     if len(memory) < BATCH_SIZE:
         print('hi')
         return
     transitions = memory.sample(BATCH_SIZE)
-    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation). This converts batch-array of Transitions
-    # to Transition of batch-arrays.
-    batch = Transition(*zip(*transitions))
+    states = np.stack([s for s, _, _, _ in transitions])
+    next_states = np.stack([ns for _, _, _, ns in transitions if ns is not None])
+    next_state_values = policy_net.predict(next_states).amax(1)
+    target_values = policy_net.predict(states)
+    next_state_index = 0
+    for i, transition in enumerate(transitions):
+        s, a, r, ns = transition
+        if ns is None:
+            target_values[i, a] = r
+        else:
+            target_values[i, a] = r + GAMMA * next_state_values[next_state_index]
+            next_state_index += 1
 
-    state_batch = torch.stack(batch.state)
-    next_state_batch = torch.stack(batch.next_state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    policy_net.fit(states, target_values, epochs=1, verbose=0)
 
-    state_action_values = policy_net(state_batch).gather(1, action_batch)
-
-    next_state_values = policy_net(next_state_batch).max(1)[0].detach()
-
-    # Compute the expected Q values
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
-
-    # Compute Huber loss
-    loss = F.mse_loss(state_action_values, expected_state_action_values.unsqueeze(1))
-
-    writer.add_scalar("Loss/Train", loss.item(), call)
-
-    # Optimize the model
-    optimizer.zero_grad()
-    loss.backward()
-    for param in policy_net.parameters():
-        param.grad.data.clamp_(-1, 1)
-    optimizer.step()
 
 opt_call = 0
 for episode in tqdm(range(EPISODES)):
@@ -118,7 +106,7 @@ for episode in tqdm(range(EPISODES)):
             observation, _, _, _ = env.step(NOTHING)
             RENDER and env.render()
 
-    state = torch.zeros([FRAME_STACK, 84, 84], dtype=torch.float64, device=device).double()
+    state = np.zeros((FRAME_STACK, 84, 84), dtype=np.float)
 
     for i in range(FRAME_STACK):
         state[i, :, :] = torchfy(observation)
@@ -130,7 +118,7 @@ for episode in tqdm(range(EPISODES)):
 
         action = select_action(state)
 
-        observation, reward, done, _ = env.step(discrete2cont(action.item()))
+        observation, reward, done, _ = env.step(discrete2cont(action))
 
         # reward = min(reward, 1.0)
         score += reward
@@ -143,11 +131,9 @@ for episode in tqdm(range(EPISODES)):
                     done = True
             elif reward > 0:
                 negative = 0
+        prev_state = state.copy()
 
-        reward = torch.tensor([reward], device=device)
-
-        prev_state = state.clone()
-
+        # TODO
         state = torch.roll(state, -1, 0)
         state[-1, :, :] = torchfy(observation)
 
@@ -158,7 +144,6 @@ for episode in tqdm(range(EPISODES)):
             optimize_model(opt_call)
             opt_call += 1
 
-
         RENDER and env.render()
         step_counter += 1
 
@@ -166,7 +151,7 @@ for episode in tqdm(range(EPISODES)):
         env.close()
 
     if episode % SAVE_EVERY == 0:
-        torch.save(policy_net.state_dict(), './model_{}.pth'.format(episode))
+        policy_net.save('./model_{}.hd5'.format(episode))
 
     writer.add_scalar("Reward/Train", score, episode)
     writer.add_scalar("Duration/Train", step_counter, episode)
@@ -178,4 +163,4 @@ for episode in tqdm(range(EPISODES)):
 
 
 env.close()
-torch.save(policy_net.state_dict(), './model_latest.pth')
+policy_net.save('./model_latest.hd5')

@@ -8,5 +8,6 @@ NOTHING = [0.0, 0.0, 0.0]
 ACTIONS = [LEFT, RIGHT, ACCELERATE, BRAKE, NOTHING]
 ACTION_SPACE = len(ACTIONS)
 
+
 def discrete2cont(action):
     return ACTIONS[action]
