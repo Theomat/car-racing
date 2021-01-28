@@ -1,5 +1,4 @@
 import gym
-import cv2
 import numpy as np
 import random
 import math
@@ -43,7 +42,7 @@ policy_net.compile(loss='mean_squared_error', optimizer=optimizer)
 
 memory = ReplayMemory(MEMORY_SIZE)
 
-writer = SummaryWriter()
+writer = tf.summary.create_file_writer("/tf_logs")
 
 
 steps_done = 0
@@ -133,8 +132,8 @@ for episode in tqdm(range(EPISODES)):
                 negative = 0
         prev_state = state.copy()
 
-        # TODO
-        state = torch.roll(state, -1, 0)
+        for i in range(FRAME_STACK-1):
+            state[i, :, :] = state[i + 1, :, :].copy()
         state[-1, :, :] = torchfy(observation)
 
         memory.push(prev_state, action, state, reward)
@@ -153,14 +152,15 @@ for episode in tqdm(range(EPISODES)):
     if episode % SAVE_EVERY == 0:
         policy_net.save('./model_{}.hd5'.format(episode))
 
-    writer.add_scalar("Reward/Train", score, episode)
-    writer.add_scalar("Duration/Train", step_counter, episode)
+    with writer.as_default():
+        tf.summary.write("Reward/Train", score, episode)
+        tf.summary.write("Duration/Train", step_counter, episode)
 
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
-    writer.add_scalar("Epsilon", eps_threshold, episode)
+        eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
+        tf.summary.write("Epsilon", eps_threshold, episode)
 
     steps_done += 1
 
-
+writer.close()
 env.close()
 policy_net.save('./model_latest.hd5')
