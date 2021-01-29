@@ -25,8 +25,8 @@ class UniformReplayBuffer:
 
     def sample(self, size: int) -> Tuple[torch.FloatTensor, torch.LongTensor, torch.FloatTensor, torch.FloatTensor]:
         memories = self.generator.integers(0, len(self._memory), size, dtype=np.int)
-        states = torch.stack([self._memory[i, 0] for i in memories])
-        actions = torch.stack([self._memory[i, 1] for i in memories], dtype=torch.int64)
-        rewards = torch.stack([self._memory[i, 2] for i in memories])
-        next_states = [self._memory[i, 3] for i in memories]
-        return states, actions, rewards, rewards, next_states
+        states = torch.stack([self._memory[i][0] for i in memories])
+        actions = torch.tensor([self._memory[i][1] for i in memories], dtype=torch.int64).view((-1, 1))
+        rewards = torch.tensor([self._memory[i][2] for i in memories]).view((-1, 1))
+        next_states = [self._memory[i][3] for i in memories]
+        return states, actions, rewards, next_states
