@@ -18,11 +18,13 @@ class PolicyModel(nn.Module):
             # nn.ReLU(),
             # nn.Linear(216, action_space)
             nn.Flatten(),
-            nn.Linear(16, 8),
+            nn.Linear(16, 64),
             nn.ReLU(),
-            nn.Linear(8, 4),
+            nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(4, 2)
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 2)
             # nn.Linear(216, action_space)
         )
 

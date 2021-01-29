@@ -19,7 +19,7 @@ print('Training on ' + device_name)
 # Globals =====================================================================
 MAX_STEPS = 1000
 FRAMES_STACK = 4
-TRAIN_FREQUENCY = 5
+TRAIN_FREQUENCY = 1
 MEMORY_BUFFER_SIZE = MAX_STEPS * TRAIN_FREQUENCY * 5
 EPISODES = 5000
 TEST_EPISODES = 0
@@ -28,9 +28,9 @@ BATCH_PER_TRAINING_STEP = TRAIN_FREQUENCY * 64 // BATCH_SIZE
 EPS_START = 1
 LR = 1e-3
 L2_REG_COEFF = 1e-7
-GAMMA = 1
-K = 0
-TARGET_MODEL_UPDATE_FREQUENCY = 100
+GAMMA = .8
+K = .05
+TARGET_MODEL_UPDATE_FREQUENCY = 20
 MAX_CONSECUTIVE_NEGATIVE_STEPS = 50
 SAVE_EVERY = 500
 
@@ -38,13 +38,15 @@ SAVE_EVERY = 500
 model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 target_model: torch.nn.Module = PolicyModel(discretize.MAX_ACTION, FRAMES_STACK).float().to(device)
 replay_buffer: UniformReplayBuffer = UniformReplayBuffer(MEMORY_BUFFER_SIZE, FRAMES_STACK)
-epsilon: annealing.Annealing = annealing.linear(EPS_START, 0.05, 3000)
+epsilon: annealing.Annealing = annealing.linear(EPS_START, 0.05, 200)
 policy: policies.Policy = policies.from_model(model)
 optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=L2_REG_COEFF)
 
 
 # Init model
 model.eval()
+for p in model.parameters():
+    p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
 # Init target net
 target_model.load_state_dict(model.state_dict())
 target_model.eval()
@@ -60,13 +62,10 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
 
     non_final_mask: torch.BoolTensor = torch.tensor(tuple(map(lambda s: s is not None, next_states)),
                                                     device=device, dtype=torch.bool)
-    non_final_next_states: torch.FloatTensor = torch.cat([s for s in next_states if s is not None])
-    # non_final_next_states = non_final_next_states.view((-1, FRAMES_STACK, 96, 96))
-    non_final_next_states = non_final_next_states.view((-1, FRAMES_STACK, 4))
+    non_final_next_states: torch.FloatTensor = torch.stack([s for s in next_states if s is not None])
 
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    with torch.no_grad():
-        next_state_values[non_final_mask] = target_model(non_final_next_states).max(1)[0]
+    next_state_values[non_final_mask] = target_model(non_final_next_states).max(1)[0].detach()
     expected_values: torch.FloatTensor = rewards + GAMMA * next_state_values
 
     if writer is not None:
@@ -76,7 +75,11 @@ def loss_function(states: torch.FloatTensor, actions: torch.LongTensor,
         writer.add_histogram('Action Values/Target', expected_values, step)
         writer.add_histogram('Action Values/Error', expected_values - action_values, step)
     # DQN reg loss
-    return F.mse_loss(action_values, expected_values.unsqueeze(1)) + K * torch.mean(action_values)
+    loss = F.smooth_l1_loss(action_values, expected_values.unsqueeze(1)) + K * torch.mean(action_values)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    return loss
 
 
 def optimize_model(writer, training_step: int):
@@ -91,13 +94,11 @@ def optimize_model(writer, training_step: int):
         rewards = rewards.to(device)
 
         loss = loss_function(states, actions, rewards, next_states, writer, BATCH_PER_TRAINING_STEP * training_step + i)
-        optimizer.zero_grad()
-        loss.backward()
-        for param in model.parameters():
-            param.grad.data.clamp_(-1, 1)
-        # if i == 0:
-            # debug.plot_grad_flow(model.named_parameters())
-        optimizer.step()
+        # optimizer.zero_grad()
+        # loss.backward()
+        # # if i == 0:
+        #     # debug.plot_grad_flow(model.named_parameters())
+        # optimizer.step()
 
         total_loss += loss.item()
 
@@ -120,6 +121,6 @@ trainer.train(policy, optimize_model, epsilon, replay_buffer,
               test_performance_episodes=TEST_EPISODES,
               max_steps=MAX_STEPS,
               max_negative_steps=MAX_CONSECUTIVE_NEGATIVE_STEPS,
-              renderTrain=False,
+              renderTrain=True,
               renderTest=True)
 torch.save(model.state_dict(), 'model_latest.pth')

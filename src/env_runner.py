@@ -23,7 +23,7 @@ def __rgb2gray(observation: np.ndarray) -> np.ndarray:
 
 def __shift_add_tensor(state: torch.FloatTensor, new_tensor: torch.FloatTensor):
     state = torch.roll(state, -1, 0)
-    state[-1, :] = new_tensor
+    state[-1, :] = new_tensor.detach().clone()
     # state[-1, :, :] = new_tensor
     return state
 
@@ -76,7 +76,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
             # state[i, :, :] = torch_observation.clone()
-            state[i, :] = torch_observation.clone()
+            state[i, :] = torch_observation.detach().clone()
 
         for t in range(max_steps):
             if render:
@@ -99,13 +99,13 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
             else:
                 negative = 0
             if done:
-                episode_data.append((state, discrete_action, reward, done, None))
+                episode_data.append((state, discrete_action, -1, done, None))
                 durations.append(t + 1)
                 break
             # Compute new state
-            new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
+            new_state: torch.FloatTensor = __shift_add_tensor(state.detach().clone(), __to_torch(__rgb2gray(observation)))
             episode_data.append((state, discrete_action, reward, done, new_state))
-            state: torch.FloatTensor = new_state.clone()
+            state: torch.FloatTensor = new_state.detach().clone()
         if len(durations) != i_episode + 1:
             durations.append(max_steps)
         episodic_data.append(episode_data)

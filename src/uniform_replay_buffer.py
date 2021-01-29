@@ -38,7 +38,7 @@ class UniformReplayBuffer:
         #     self._buffer[3][i] = sample[3]
         # return self._buffer
         memories: List[Transition] = self.generator.choice(self._memory, size, shuffle=False)
-        states: torch.FloatTensor = torch.cat([s for s, _, _, _ in memories]).view((size, self.frames_stack, -1))
+        states: torch.FloatTensor = torch.stack([s for s, _, _, _ in memories])
         actions: torch.LongTensor = torch.tensor([a for _, a, _, _ in memories], dtype=torch.int64).view((-1, 1))
         rewards: torch.FloatTensor = torch.tensor([r for _, _, r, _ in memories])
         return states, actions, rewards, [ns for _, _, _, ns in memories]
