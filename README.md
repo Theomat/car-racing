@@ -38,6 +38,7 @@ total_loss += loss.item()
 
 ### Requirements
 
+- **gym** for all branches
 - **tqdm** for all branches
 - **tensorboard** for all branches
 - **numpy** for all branches
