@@ -22,7 +22,7 @@ def __rgb2gray(observation: np.ndarray) -> np.ndarray:
 
 def __shift_add_tensor(state: torch.FloatTensor, new_tensor: torch.FloatTensor):
     state = torch.roll(state, -1, 0)
-    state[-1, :, :] = new_tensor
+    state[-1, :, :] = new_tensor.detach().clone()
     return state
 
 
@@ -71,14 +71,14 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
         # Initialize state
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
-            state[i, :, :] = torch_observation.clone()
+            state[i, :, :] = torch_observation.detach().clone()
 
         for t in range(max_steps):
             if render:
                 env.render()
             discrete_action: int = policy(state, i_episode, episodes)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
-            
+
             # reward = min(reward, 1.0)
             episode_reward += reward
             if episode_reward < 0:
@@ -97,7 +97,7 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
                 durations.append(t + 1)
                 break
             # Compute new state
-            new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
+            new_state: torch.FloatTensor = __shift_add_tensor(state.detach().clone(), __to_torch(__rgb2gray(observation)))
             episode_data.append((state, discrete_action, reward, done, new_state))
             state: torch.FloatTensor = new_state
         if len(durations) != i_episode + 1:
@@ -139,14 +139,14 @@ def evaluate(policy: Policy, episodes: int, max_steps: int = 10000,
         # Initialize state
         torch_observation: torch.FloatTensor = __to_torch(__rgb2gray(observation))
         for i in range(frames_stack):
-            state[i, :, :] = torch_observation.clone()
+            state[i, :, :] = torch_observation.detach().clone()
         episode_reward: float = 0
         for t in range(max_steps):
             if render:
                 env.render()
             discrete_action: int = policy(state)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
-            new_state: torch.FloatTensor = __shift_add_tensor(state.clone(), __to_torch(__rgb2gray(observation)))
+            new_state: torch.FloatTensor = __shift_add_tensor(state.detach().clone(), __to_torch(__rgb2gray(observation)))
             episode_reward += reward
             state: torch.FloatTensor = new_state
             if done:
