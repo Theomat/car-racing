@@ -17,7 +17,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 def __rgb2gray(observation: np.ndarray) -> np.ndarray:
     gray = 0.2989 * observation[:, :, 0] + 0.5870 * observation[:, :, 1] + 0.1140 * observation[:, :, 2]
     #gray = np.uint8(gray)
-    return gray
+    return gray / 255.0
 
 
 def __shift_add_tensor(state: torch.FloatTensor, new_tensor: torch.FloatTensor):
@@ -79,6 +79,11 @@ def run_episodes(policy: TrainingPolicy, episodes: int, max_steps: int = 10000,
             discrete_action: int = policy(state, i_episode, episodes)
             observation, reward, done, info = env.step(action_discrete2continous(discrete_action))
 
+            if reward <= -100:
+                reward = 0
+            if np.mean(observation[:, :, 1]) > 185:
+                # Penalize off course
+                reward -= .05
             # reward = min(reward, 1.0)
             episode_reward += reward
             if episode_reward < 0:
